@@ -33,13 +33,23 @@ jobs:
           while read -r link; do
             case "$link" in http*) url="$link" ;; /*) url="https://opencellid.org$link" ;; *) url="https://opencellid.org/$link" ;; esac
             mcc=$(echo "$link" | grep -oE 'file=[0-9]{3}' | cut -d= -f2)
-            curl -fsSL "$url" -o "in/$mcc.csv.gz" || echo "::warning::download failed for MCC $mcc"
+            # Keep a file only if it is a complete gzip (errors can come back as HTML with HTTP 200).
+            if curl -fsSL "$url" -o "tmp.gz" && gzip -t tmp.gz 2>/dev/null; then
+              mv tmp.gz "in/$mcc.csv.gz"
+            else
+              rm -f tmp.gz; echo "::warning::download failed for MCC $mcc"
+            fi
             sleep 2
           done < links.txt
           ls in | wc -l
 
       - name: Slim and index
-        run: python3 tools/mirror/mirror.py in out
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Countries that fail this month keep last month's entry (their file stays on the release).
+          gh release download towers-latest -p index.json -D prev 2>/dev/null || true
+          python3 tools/mirror/mirror.py in out --previous-index prev/index.json
 
       - name: Publish release
         env:
@@ -49,6 +59,8 @@ jobs:
           month=$(date -u +%Y-%m)
           gh release view towers-latest >/dev/null 2>&1 || \
             gh release create towers-latest --title "Tower data (latest)" --notes-file tools/mirror/LICENSE-DATA.txt --latest=false
-          gh release upload towers-latest out/* --clobber
+          # Upload data files first and the index last, so the index never points at a missing file.
+          find out -type f ! -name index.json -exec gh release upload towers-latest {} --clobber \;
+          gh release upload towers-latest out/index.json --clobber
           gh release view "towers-$month" >/dev/null 2>&1 || \
             gh release create "towers-$month" out/* --title "Tower data $month" --notes-file tools/mirror/LICENSE-DATA.txt --latest=false

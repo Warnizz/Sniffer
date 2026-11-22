@@ -37,7 +37,7 @@ import io.github.warnizz.sniffer.towers.CountryDataManager
 import io.github.warnizz.sniffer.towers.DbStatus
 
 @Composable
-fun HomeScreen(engine: SnifferEngine, settingsStore: SettingsStore, countryData: CountryDataManager, onDownload: (Int) -> Unit, onLookAround: () -> Unit, onSettings: () -> Unit) {
+fun HomeScreen(engine: SnifferEngine, settingsStore: SettingsStore, countryData: CountryDataManager, onDownload: (Int) -> Unit, onRetryMirror: () -> Unit, onLookAround: () -> Unit, onSettings: () -> Unit) {
     val context = LocalContext.current
     val state by engine.state.collectAsStateWithLifecycle()
     val settings by settingsStore.settings.collectAsStateWithLifecycle(null)
@@ -88,8 +88,12 @@ fun HomeScreen(engine: SnifferEngine, settingsStore: SettingsStore, countryData:
                         Text("Download the cell towers for MCC $servingMcc (${formatBytes(file.bytes)}) once and Sniffer works offline. No account needed.")
                         Button(onClick = { onDownload(servingMcc) }) { Text("Download ${formatBytes(file.bytes)}") }
                     } else {
-                        Text(if (countries.index == null) "Couldn't reach the tower data mirror — check your connection."
-                            else "No tower data for MCC $servingMcc yet. You can add an OpenCelliD key in settings instead.")
+                        if (countries.index == null) {
+                            Text("Couldn't reach the tower data mirror — check your connection.")
+                            OutlinedButton(onClick = onRetryMirror) { Text("Retry") }
+                        } else {
+                            Text("No tower data for MCC $servingMcc yet. You can add an OpenCelliD key in settings instead.")
+                        }
                     }
                     countries.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }

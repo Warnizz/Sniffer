@@ -1,11 +1,15 @@
 package io.github.warnizz.sniffer.towers
 
+import android.database.sqlite.SQLiteFullException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 data class CountryDataState(
     val records: List<CountryRecord> = emptyList(),
@@ -37,13 +41,27 @@ class CountryDataManager(
 
     suspend fun download(mcc: Int) = lock.withLock {
         _state.update { it.copy(busyMcc = mcc, progressRows = 0, error = null) }
-        val result = source.import(mcc) { rows -> _state.update { it.copy(progressRows = rows) } }
-        val error = when (result) {
-            is ImportResult.Ok -> null
-            ImportResult.NotAvailable -> "No tower data for MCC $mcc in the mirror yet"
-            is ImportResult.Failed -> result.reason
+        var error: String? = null
+        try {
+            val result = source.import(mcc) { rows -> _state.update { it.copy(progressRows = rows) } }
+            error = when (result) {
+                is ImportResult.Ok -> null
+                ImportResult.NotAvailable -> "No tower data for MCC $mcc in the mirror yet"
+                is ImportResult.Failed -> result.reason
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: SQLiteFullException) {
+            error = "Not enough storage space for this country's tower data"
+        } catch (e: Exception) {
+            error = "Import failed: ${e.message ?: e.javaClass.simpleName}"
+        } finally {
+            // Always leave the busy state, even on cancellation, so the buttons come back.
+            withContext(NonCancellable) {
+                val records = runCatching { store.countries() }.getOrNull()
+                _state.update { it.copy(records = records ?: it.records, busyMcc = null, error = error) }
+            }
         }
-        _state.update { it.copy(records = store.countries(), busyMcc = null, error = error) }
     }
 
     suspend fun remove(mcc: Int) = lock.withLock {

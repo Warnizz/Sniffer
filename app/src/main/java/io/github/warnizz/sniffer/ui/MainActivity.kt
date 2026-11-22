@@ -30,7 +30,8 @@ class MainActivity : ComponentActivity() {
                 Surface(Modifier.fillMaxSize()) {
                     when (screen) {
                         Screen.HOME -> HomeScreen(app.engine, app.settingsStore, app.countryData,
-                            onDownload = { mcc -> app.appScope.launch { app.countryData.download(mcc) } }, onLookAround = { screen = Screen.AR }, onSettings = { screen = Screen.SETTINGS })
+                            onDownload = { mcc -> app.appScope.launch { app.countryData.download(mcc) } },
+                            onRetryMirror = { app.appScope.launch { app.countryData.refresh() } }, onLookAround = { screen = Screen.AR }, onSettings = { screen = Screen.SETTINGS })
                         Screen.AR -> ArScreen(app.engine, app.settingsStore, onBack = { screen = Screen.HOME })
                         Screen.SETTINGS -> SettingsScreen(
                             app.settingsStore, app.countryData,

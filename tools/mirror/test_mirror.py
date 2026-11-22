@@ -62,6 +62,30 @@ class MainTest(unittest.TestCase):
             self.assertEqual(idx["countries"]["238"]["rows"], 2)
             self.assertEqual(idx["countries"]["238"]["bytes"], os.path.getsize(os.path.join(out, "238.csv.gz")))
 
+    def test_main_skipsCorruptFile(self):
+        with tempfile.TemporaryDirectory() as src, tempfile.TemporaryDirectory() as out:
+            with gzip.open(os.path.join(src, "238.csv.gz"), "wt") as f:
+                f.write(ROW_LTE + "\n")
+            with open(os.path.join(src, "240.csv.gz"), "w") as f:
+                f.write("<html>error</html>")
+            self.assertEqual(mirror.main([src, out, "--generated", "2026-11-03"]), 0)
+            idx = json.load(open(os.path.join(out, "index.json")))
+            self.assertEqual(list(idx["countries"]), ["238"])
+            self.assertFalse(os.path.exists(os.path.join(out, "240.csv.gz")))
+
+    def test_main_carriesForwardPreviousEntries(self):
+        with tempfile.TemporaryDirectory() as src, tempfile.TemporaryDirectory() as out, tempfile.TemporaryDirectory() as prev:
+            with gzip.open(os.path.join(src, "238.csv.gz"), "wt") as f:
+                f.write(ROW_LTE + "\n")
+            prev_index = os.path.join(prev, "index.json")
+            json.dump({"generated": "2026-10-03", "countries": {
+                "238": {"file": "238.csv.gz", "bytes": 1, "rows": 1},
+                "240": {"file": "240.csv.gz", "bytes": 99, "rows": 7}}}, open(prev_index, "w"))
+            self.assertEqual(mirror.main([src, out, "--generated", "2026-11-03", "--previous-index", prev_index]), 0)
+            idx = json.load(open(os.path.join(out, "index.json")))
+            self.assertEqual(idx["countries"]["240"], {"file": "240.csv.gz", "bytes": 99, "rows": 7})
+            self.assertEqual(idx["countries"]["238"]["rows"], 1)
+
     def test_main_noInputs_fails(self):
         with tempfile.TemporaryDirectory() as src, tempfile.TemporaryDirectory() as out:
             self.assertNotEqual(mirror.main([src, out]), 0)

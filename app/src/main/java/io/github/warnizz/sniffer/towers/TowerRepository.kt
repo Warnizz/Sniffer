@@ -26,9 +26,10 @@ class TowerRepository(
         val tiles = tilesCovering(center, radiusM)
         val refreshed = refresh(tiles, apiKey?.trim().orEmpty())
         val all = store.cellsInTiles(tiles)
-        // Imported country data counts as data even without a key or a fetched tile.
-        val hasData = all.isNotEmpty() || tiles.any { store.tileFetchedAt(it) != null }
-        val status = if (refreshed == DbStatus.NO_KEY && all.isNotEmpty()) DbStatus.OK else refreshed
+        // An imported country counts as data even where it has no towers ("nothing here" is an answer).
+        val imported = store.countries().isNotEmpty()
+        val hasData = imported || all.isNotEmpty() || tiles.any { store.tileFetchedAt(it) != null }
+        val status = if (refreshed == DbStatus.NO_KEY && (imported || all.isNotEmpty())) DbStatus.OK else refreshed
         val cells = all.filter { distanceM(center, it.pos) <= radiusM }
         return TowersResult(clusterSites(cells), status, hasData)
     }

@@ -70,4 +70,14 @@ class CountryDataManagerTest {
         m.remove(238)
         assertEquals(emptyList<CountryRecord>(), m.state.value.records)
     }
+
+    @Test fun download_sourceThrows_errorAndNotBusy() = runTest {
+        val throwing = object : CountrySource by source {
+            override suspend fun import(mcc: Int, progress: (Int) -> Unit): ImportResult = throw android.database.sqlite.SQLiteFullException("disk full")
+        }
+        val m = CountryDataManager(throwing, store, { false }, { null }, { }, { now })
+        m.download(238)
+        assertNull(m.state.value.busyMcc)
+        assertEquals("Not enough storage space for this country's tower data", m.state.value.error)
+    }
 }

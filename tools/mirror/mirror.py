@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Slims OpenCelliD per-country exports for the Sniffer app and writes index.json.
 
-Usage: mirror.py <in_dir> <out_dir> [--generated YYYY-MM-DD]
+Usage: mirror.py <in_dir> <out_dir> [--generated YYYY-MM-DD] [--previous-index index.json]
 
 <in_dir> holds OpenCelliD exports named <mcc>.csv.gz (14 columns, header optional).
 <out_dir> receives <mcc>.csv.gz with only the columns the app uses, index.json and
-LICENSE-DATA.txt. Data is CC BY-SA 4.0 (c) OpenCelliD contributors. Stdlib only.
+LICENSE-DATA.txt. Corrupt inputs are skipped with a warning. With --previous-index, countries that
+failed this run keep last run's index entry (their old file stays on the release). Data is CC BY-SA 4.0 (c) OpenCelliD contributors. Stdlib only.
 """
 import datetime
 import gzip
@@ -55,10 +56,15 @@ def build_index(entries, generated):
 def main(argv):
     args = list(argv)
     generated = datetime.date.today().isoformat()
-    if "--generated" in args:
-        i = args.index("--generated")
-        generated = args[i + 1]
-        del args[i:i + 2]
+    previous = None
+    for flag in ("--generated", "--previous-index"):
+        if flag in args:
+            i = args.index(flag)
+            if flag == "--generated":
+                generated = args[i + 1]
+            else:
+                previous = args[i + 1]
+            del args[i:i + 2]
     if len(args) != 2:
         print(__doc__, file=sys.stderr)
         return 2
@@ -72,16 +78,33 @@ def main(argv):
         mcc = m.group(1)
         dst = os.path.join(out, name)
         rows = 0
-        with gzip.open(os.path.join(src, name), "rt", errors="replace") as fin, gzip.open(dst, "wt") as fout:
-            for i, line in enumerate(slim(fin)):
-                fout.write(line + "\n")
-                rows += 0 if i == 0 else 1
+        try:
+            with gzip.open(os.path.join(src, name), "rt", errors="replace") as fin, gzip.open(dst, "wt") as fout:
+                for i, line in enumerate(slim(fin)):
+                    fout.write(line + "\n")
+                    rows += 0 if i == 0 else 1
+        except (OSError, EOFError) as e:
+            print(f"warning: skipping {name}: {e}", file=sys.stderr)
+            if os.path.exists(dst):
+                os.remove(dst)
+            continue
         entries[mcc] = (os.path.getsize(dst), rows)
     if not entries:
         print("no <mcc>.csv.gz inputs found", file=sys.stderr)
         return 1
+    index = build_index(entries, generated)
+    if previous and os.path.exists(previous):
+        try:
+            old = json.load(open(previous)).get("countries", {})
+        except (OSError, ValueError) as e:
+            print(f"warning: ignoring previous index: {e}", file=sys.stderr)
+            old = {}
+        for mcc, entry in old.items():
+            if mcc not in index["countries"]:
+                index["countries"][mcc] = entry
+        index["countries"] = dict(sorted(index["countries"].items()))
     with open(os.path.join(out, "index.json"), "w") as f:
-        json.dump(build_index(entries, generated), f, indent=1)
+        json.dump(index, f, indent=1)
     shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), "LICENSE-DATA.txt"), out)
     print(f"wrote {len(entries)} countries, {sum(r for _, r in entries.values())} rows")
     return 0

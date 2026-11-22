@@ -124,4 +124,12 @@ class TowerRepositoryTest {
         assertEquals(1, r.sites.size)
         assertEquals(0, fetched.size)
     }
+
+    @Test fun repository_noKey_countryImported_emptyArea_isOkWithData() = runTest {
+        store.putCountry(CountryRecord(238, 1000, 0L, "2026-11-03"))
+        val r = repo.sitesNear(center, 2000.0, null)
+        assertEquals(DbStatus.OK, r.status)
+        assertTrue(r.hasData) // "no towers here" is real data, not a missing database
+        assertEquals(0, r.sites.size)
+    }
 }
