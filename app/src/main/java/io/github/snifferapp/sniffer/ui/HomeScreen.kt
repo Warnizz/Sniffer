@@ -32,14 +32,20 @@ import io.github.snifferapp.sniffer.ar.label
 import io.github.snifferapp.sniffer.engine.Mode
 import io.github.snifferapp.sniffer.engine.SnifferEngine
 import io.github.snifferapp.sniffer.engine.SnifferService
+import io.github.snifferapp.sniffer.settings.SettingsStore
 import io.github.snifferapp.sniffer.towers.DbStatus
 
 @Composable
-fun HomeScreen(engine: SnifferEngine, onLookAround: () -> Unit, onSettings: () -> Unit) {
+fun HomeScreen(engine: SnifferEngine, settingsStore: SettingsStore, onLookAround: () -> Unit, onSettings: () -> Unit) {
     val context = LocalContext.current
     val state by engine.state.collectAsStateWithLifecycle()
+    val settings by settingsStore.settings.collectAsStateWithLifecycle(null)
     var locationGranted by remember { mutableStateOf(context.hasLocation()) }
-    val askLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { locationGranted = it }
+    var precise by remember { mutableStateOf(context.hasPreciseLocation()) }
+    val askLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        locationGranted = context.hasLocation()
+        precise = context.hasPreciseLocation()
+    }
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         SnifferService.start(context) // runs either way; without the permission the notification is just hidden
     }
@@ -52,21 +58,22 @@ fun HomeScreen(engine: SnifferEngine, onLookAround: () -> Unit, onSettings: () -
         Text("Sniffer", style = MaterialTheme.typography.displaySmall)
         Text("See and hear the cell towers around you.", style = MaterialTheme.typography.bodyLarge)
 
-        if (!locationGranted) {
+        if (!locationGranted || !precise) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Location is needed", style = MaterialTheme.typography.titleMedium)
-                    Text("Android only shares cell information with apps that have location access, and your position is used to find towers near you. It never leaves your phone except as the map area sent to OpenCelliD.")
-                    Button(onClick = { askLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("Allow location") }
+                    Text(if (locationGranted) "Precise location gives more" else "Location is needed", style = MaterialTheme.typography.titleMedium)
+                    Text("Your position is used to find towers near you, and Android only shares live cell details with apps that have precise location. It never leaves your phone except as the map area sent to OpenCelliD.")
+                    Button(onClick = { askLocation.launch(LOCATION_PERMISSIONS) }) { Text(if (locationGranted) "Allow precise location" else "Allow location") }
                 }
             }
         }
 
-        if (state.dbStatus == DbStatus.NO_KEY || state.dbStatus == DbStatus.INVALID_KEY) {
+        val noKey = settings != null && settings?.apiKey == null
+        if (noKey || state.dbStatus == DbStatus.INVALID_KEY) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        if (state.dbStatus == DbStatus.NO_KEY) "No OpenCelliD key — add one in settings to see towers"
+                        if (noKey) "No OpenCelliD key — add one in settings to see towers"
                         else "OpenCelliD rejected your key — check it in settings",
                     )
                     OutlinedButton(onClick = onSettings) { Text("Open settings") }

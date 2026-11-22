@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,7 +35,7 @@ data class SnifferState(
     val matches: Map<String, Match> = emptyMap(),
     val servingSiteId: String? = null,
     val ownMccMnc: Pair<Int, Int>? = null,
-    val dbStatus: DbStatus = DbStatus.NO_KEY,
+    val dbStatus: DbStatus = DbStatus.WAITING,
     val controls: SoundControls? = null,
 )
 
@@ -56,18 +57,20 @@ class SnifferEngine(
     val state: StateFlow<SnifferState> = _state.asStateFlow()
 
     private var job: Job? = null
-    private var ar = false
-    private var ambient = false
+    @Volatile private var ar = false
+    @Volatile private var ambient = false
     private val detector = HandoverDetector()
     private val mapper = ControlMapper()
 
-    @Synchronized fun setAr(on: Boolean) { ar = on; apply() }
-    @Synchronized fun setAmbient(on: Boolean) { ambient = on; apply() }
+    // Callers may be on any thread; the mode change itself runs on the engine's single-threaded scope,
+    // so it never interleaves with a tick.
+    fun setAr(on: Boolean) { ar = on; scope.launch { apply() } }
+    fun setAmbient(on: Boolean) { ambient = on; scope.launch { apply() } }
 
-    @Synchronized fun setMode(mode: Mode) {
+    fun setMode(mode: Mode) {
         ar = mode == Mode.AR || mode == Mode.AR_AND_AMBIENT
         ambient = mode == Mode.AMBIENT || mode == Mode.AR_AND_AMBIENT
-        apply()
+        scope.launch { apply() }
     }
 
     private fun apply() {
@@ -125,6 +128,7 @@ class SnifferEngine(
                 else -> cfg.arVolume
             }
             val u = user
+            ensureActive()
             val controls = mapper.map(result.sites, result.hasData, u, cfg.radiusM.toDouble(), s, handover, newNeighbours, master, nowMs())
             sink.send(controls)
             val liveCells = listOfNotNull(s.serving) + s.neighbours

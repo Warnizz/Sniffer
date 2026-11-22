@@ -50,6 +50,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.snifferapp.sniffer.engine.SnifferEngine
@@ -62,6 +64,8 @@ import io.github.snifferapp.sniffer.settings.SettingsStore
 import io.github.snifferapp.sniffer.towers.DbStatus
 import io.github.snifferapp.sniffer.towers.Radio
 import io.github.snifferapp.sniffer.towers.TowerSite
+import io.github.snifferapp.sniffer.ui.LOCATION_PERMISSIONS
+import io.github.snifferapp.sniffer.ui.hasLocation
 import kotlinx.coroutines.launch
 import kotlin.math.exp
 import kotlin.math.hypot
@@ -100,15 +104,32 @@ fun ArScreen(engine: SnifferEngine, settingsStore: SettingsStore, onBack: () -> 
     }
     val askCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraGranted = it }
 
-    DisposableEffect(Unit) {
-        engine.setAr(true)
-        onDispose { engine.setAr(false) }
+    // AR (and its sound) runs only while this screen is visible, not when the app is in the background.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> engine.setAr(true)
+                Lifecycle.Event.ON_STOP -> engine.setAr(false)
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            engine.setAr(false)
+        }
+    }
+    var locationGranted by remember { mutableStateOf(context.hasLocation()) }
+    val askLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        locationGranted = context.hasLocation()
     }
 
     val state by engine.state.collectAsStateWithLifecycle()
     val settings by settingsStore.settings.collectAsStateWithLifecycle(Settings())
     val orientation = remember { OrientationSource(context) }
-    val rotation by orientation.rotation().collectAsStateWithLifecycle(null)
+    val rotationFlow = remember { orientation.rotation() }
+    val rotation by rotationFlow.collectAsStateWithLifecycle(null)
     var selected by remember { mutableStateOf<TowerSite?>(null) }
     val drawn = remember { DrawnHolder() }
     val scope = rememberCoroutineScope()
@@ -133,7 +154,9 @@ fun ArScreen(engine: SnifferEngine, settingsStore: SettingsStore, onBack: () -> 
                     Text(if (settings.arMuted) "Unmute" else "Mute", color = Color.White)
                 }
             }
-            if (state.user == null) Chip("Waiting for GPS…")
+            if (!locationGranted) {
+                Button(onClick = { askLocation.launch(LOCATION_PERMISSIONS) }) { Text("Allow location to place towers") }
+            } else if (state.user == null) Chip("Waiting for GPS…")
             if (rotation == null) Chip("No orientation sensor")
         }
     }
@@ -144,6 +167,7 @@ fun ArScreen(engine: SnifferEngine, settingsStore: SettingsStore, onBack: () -> 
 }
 
 private fun statusText(s: SnifferState): String = when (s.dbStatus) {
+    DbStatus.WAITING -> "Looking for towers…"
     DbStatus.OK -> "${s.sites.size} towers nearby"
     DbStatus.NO_KEY -> "No OpenCelliD key"
     DbStatus.INVALID_KEY -> "OpenCelliD key rejected"
@@ -160,6 +184,14 @@ private fun Chip(text: String) {
 @Composable
 private fun CameraPreview() {
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
+    DisposableEffect(Unit) {
+        onDispose {
+            // bindToLifecycle lasts as long as the Activity; release the camera when leaving this screen.
+            val f = ProcessCameraProvider.getInstance(context)
+            f.addListener({ runCatching { f.get().unbindAll() } }, ContextCompat.getMainExecutor(context))
+        }
+    }
     AndroidView(
         modifier = Modifier.fillMaxSize(),
         factory = { ctx ->

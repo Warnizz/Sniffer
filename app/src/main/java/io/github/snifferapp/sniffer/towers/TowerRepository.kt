@@ -5,7 +5,8 @@ import io.github.snifferapp.sniffer.geo.TileId
 import io.github.snifferapp.sniffer.geo.distanceM
 import io.github.snifferapp.sniffer.geo.tilesCovering
 
-enum class DbStatus { OK, NO_KEY, INVALID_KEY, RATE_LIMITED, OFFLINE_PARTIAL }
+/** WAITING = no query made yet (e.g. no GPS fix). */
+enum class DbStatus { WAITING, OK, NO_KEY, INVALID_KEY, RATE_LIMITED, OFFLINE_PARTIAL }
 
 data class TowersResult(val sites: List<TowerSite>, val status: DbStatus, val hasData: Boolean)
 

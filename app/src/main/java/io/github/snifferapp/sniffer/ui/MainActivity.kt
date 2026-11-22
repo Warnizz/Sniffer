@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
                 BackHandler(enabled = screen != Screen.HOME) { screen = Screen.HOME }
                 Surface(Modifier.fillMaxSize()) {
                     when (screen) {
-                        Screen.HOME -> HomeScreen(app.engine, onLookAround = { screen = Screen.AR }, onSettings = { screen = Screen.SETTINGS })
+                        Screen.HOME -> HomeScreen(app.engine, app.settingsStore, onLookAround = { screen = Screen.AR }, onSettings = { screen = Screen.SETTINGS })
                         Screen.AR -> ArScreen(app.engine, app.settingsStore, onBack = { screen = Screen.HOME })
                         Screen.SETTINGS -> SettingsScreen(app.settingsStore, onBack = { screen = Screen.HOME })
                     }

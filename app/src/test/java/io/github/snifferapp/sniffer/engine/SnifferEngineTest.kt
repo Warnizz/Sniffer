@@ -130,4 +130,25 @@ class SnifferEngineTest {
         assertEquals(238 to 1, e.state.value.ownMccMnc)
         assertEquals(DbStatus.OK, e.state.value.dbStatus)
     }
+
+    @Test fun engine_beforeFirstFix_dbStatusWaiting() = runTest {
+        location.value = null
+        val e = engine()
+        assertEquals(DbStatus.WAITING, e.state.value.dbStatus)
+        e.setMode(Mode.AMBIENT)
+        advanceTimeBy(3_000)
+        assertEquals(DbStatus.WAITING, e.state.value.dbStatus)
+    }
+
+    @Test fun engine_off_noMoreSendsAndModeOff() = runTest {
+        val e = engine()
+        e.setMode(Mode.AMBIENT)
+        advanceTimeBy(2_500)
+        e.setMode(Mode.OFF)
+        runCurrent()
+        val n = sink.sent.size
+        advanceTimeBy(5_000)
+        assertEquals(n, sink.sent.size)
+        assertEquals(Mode.OFF, e.state.value.mode)
+    }
 }
