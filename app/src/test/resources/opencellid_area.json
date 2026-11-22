@@ -1,0 +1,11 @@
+{"count": 9, "cells": [
+ {"lat": 55.676, "lon": 12.568, "mcc": 238, "mnc": 1, "lac": 1001, "cellid": 2000001, "averageSignalStrength": 0, "range": 800, "samples": 12, "changeable": 1, "radio": "LTE", "rnc": 0, "cid": 0, "tac": 0, "sid": 0, "nid": 0, "bid": 0},
+ {"lat": 55.676, "lon": 12.568, "mcc": 238, "mnc": 1, "lac": 1001, "cellid": 2000002, "averageSignalStrength": 0, "range": 800, "samples": 9, "changeable": 1, "radio": "LTE"},
+ {"lat": 55.677, "lon": 12.570, "mcc": 238, "mnc": 2, "lac": 2002, "cellid": 31000, "averageSignalStrength": -80, "range": 1500, "samples": 3, "changeable": 1, "radio": "GSM"},
+ {"lat": 55.680, "lon": 12.575, "mcc": 238, "mnc": 20, "lac": 3003, "cellid": 68719476000, "averageSignalStrength": 0, "range": 400, "samples": 2, "changeable": 1, "radio": "NR"},
+ {"lat": 55.681, "lon": 12.560, "mcc": 238, "mnc": 6, "lac": 4004, "cellid": 555, "averageSignalStrength": 0, "range": 2000, "samples": 1, "changeable": 1, "radio": "UMTS"},
+ {"lat": 0.0, "lon": 0.0, "mcc": 238, "mnc": 1, "lac": 1, "cellid": 1, "range": 1, "samples": 1, "radio": "LTE"},
+ {"lat": 95.0, "lon": 12.0, "mcc": 238, "mnc": 1, "lac": 1, "cellid": 2, "range": 1, "samples": 1, "radio": "LTE"},
+ {"lat": 55.0, "lon": 190.0, "mcc": 238, "mnc": 1, "lac": 1, "cellid": 3, "range": 1, "samples": 1, "radio": "LTE"},
+ {"lat": 55.676, "lon": 12.568, "mcc": 238, "mnc": 1, "lac": 1001, "cellid": 2000001, "range": 800, "samples": 12, "radio": "LTE"}
+]}
