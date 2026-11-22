@@ -28,7 +28,7 @@ class SnifferApp : Application() {
     override fun onCreate() {
         super.onCreate()
         settingsStore = SettingsStore(this)
-        val db = Room.databaseBuilder(this, TowerDb::class.java, "towers.db").build()
+        val db = Room.databaseBuilder(this, TowerDb::class.java, "towers.db").fallbackToDestructiveMigration().build()
         val http = OkHttpClient.Builder().callTimeout(20, TimeUnit.SECONDS).build()
         val client = OpenCellIdClient(http)
         val repo = TowerRepository(RoomTowerStore(db), client::fetchTile, System::currentTimeMillis)

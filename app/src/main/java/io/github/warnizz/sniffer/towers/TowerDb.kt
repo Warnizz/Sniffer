@@ -23,6 +23,9 @@ data class CellEntity(
 @Entity(tableName = "tiles", primaryKeys = ["x", "y"])
 data class TileEntity(val x: Int, val y: Int, val fetchedAtMs: Long)
 
+@Entity(tableName = "countries")
+data class CountryEntity(@androidx.room.PrimaryKey val mcc: Int, val rows: Int, val importedAtMs: Long, val generated: String)
+
 @Dao
 interface TowerDao {
     @Query("SELECT * FROM cells WHERE tileX = :x AND tileY = :y")
@@ -31,24 +34,39 @@ interface TowerDao {
     @Query("SELECT fetchedAtMs FROM tiles WHERE x = :x AND y = :y")
     suspend fun tileFetchedAt(x: Int, y: Int): Long?
 
-    @Query("DELETE FROM cells WHERE tileX = :x AND tileY = :y")
-    suspend fun deleteTileCells(x: Int, y: Int)
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCells(cells: List<CellEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTile(tile: TileEntity)
 
+    /** Upserts only: refreshing a tile from the API never erases imported cells. */
     @Transaction
-    suspend fun replaceTile(tile: TileEntity, cells: List<CellEntity>) {
-        deleteTileCells(tile.x, tile.y)
+    suspend fun putTile(tile: TileEntity, cells: List<CellEntity>) {
         insertCells(cells)
         insertTile(tile)
     }
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putCountry(country: CountryEntity)
+
+    @Query("SELECT * FROM countries ORDER BY mcc")
+    suspend fun countries(): List<CountryEntity>
+
+    @Query("DELETE FROM cells WHERE mcc = :mcc")
+    suspend fun deleteCountryCells(mcc: Int)
+
+    @Query("DELETE FROM countries WHERE mcc = :mcc")
+    suspend fun deleteCountry(mcc: Int)
+
+    @Transaction
+    suspend fun removeCountry(mcc: Int) {
+        deleteCountryCells(mcc)
+        deleteCountry(mcc)
+    }
 }
 
-@Database(entities = [CellEntity::class, TileEntity::class], version = 1, exportSchema = false)
+@Database(entities = [CellEntity::class, TileEntity::class, CountryEntity::class], version = 2, exportSchema = false)
 abstract class TowerDb : RoomDatabase() {
     abstract fun dao(): TowerDao
 }

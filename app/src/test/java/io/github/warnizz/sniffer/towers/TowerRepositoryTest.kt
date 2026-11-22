@@ -10,10 +10,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FakeTowerStore : TowerStore {
-    val tiles = mutableMapOf<TileId, Pair<List<Cell>, Long>>()
-    override suspend fun cellsInTiles(tiles: List<TileId>) = tiles.flatMap { this.tiles[it]?.first.orEmpty() }
-    override suspend fun putTile(tile: TileId, cells: List<Cell>, fetchedAtMs: Long) { tiles[tile] = cells to fetchedAtMs }
-    override suspend fun tileFetchedAt(tile: TileId) = tiles[tile]?.second
+    val tiles = mutableMapOf<TileId, Long>()
+    val cells = mutableListOf<Cell>()
+    val records = mutableMapOf<Int, CountryRecord>()
+    override suspend fun cellsInTiles(tiles: List<TileId>) = cells.filter { tileOf(it.pos) in tiles }
+    override suspend fun putTile(tile: TileId, cells: List<Cell>, fetchedAtMs: Long) { upsertCells(cells); tiles[tile] = fetchedAtMs }
+    override suspend fun tileFetchedAt(tile: TileId) = tiles[tile]
+    override suspend fun upsertCells(cells: List<Cell>) {
+        for (c in cells) { this.cells.removeAll { it.radio == c.radio && it.mcc == c.mcc && it.mnc == c.mnc && it.area == c.area && it.cellId == c.cellId }; this.cells += c }
+    }
+    override suspend fun putCountry(record: CountryRecord) { records[record.mcc] = record }
+    override suspend fun countries() = records.values.toList()
+    override suspend fun removeCountry(mcc: Int) { cells.removeAll { it.mcc == mcc }; records.remove(mcc) }
 }
 
 class TowerRepositoryTest {
@@ -43,11 +51,11 @@ class TowerRepositoryTest {
         assertEquals(2 * n, fetched.size)
     }
 
-    @Test fun repository_noKey_returnsCachedOnly_statusNoKey() = runTest {
+    @Test fun repository_noKey_returnsCachedOnly_statusOk() = runTest {
         store.putTile(tileOf(center), listOf(cellAt(center.lat, center.lon)), now)
         val r = repo.sitesNear(center, 2000.0, null)
         assertEquals(0, fetched.size)
-        assertEquals(DbStatus.NO_KEY, r.status)
+        assertEquals(DbStatus.OK, r.status) // cached/imported data is enough without a key
         assertEquals(1, r.sites.size)
         assertTrue(r.hasData)
     }
@@ -106,5 +114,14 @@ class TowerRepositoryTest {
         fetchResult = { FetchResult.Ok(emptyList()) }
         assertEquals(DbStatus.OK, repo.sitesNear(center, 2000.0, "good").status)
         assertTrue(fetched.size > 1)
+    }
+
+    @Test fun repository_noKey_withCountryData_ok() = runTest {
+        store.upsertCells(listOf(cellAt(center.lat, center.lon)))
+        val r = repo.sitesNear(center, 2000.0, null)
+        assertEquals(DbStatus.OK, r.status)
+        assertTrue(r.hasData)
+        assertEquals(1, r.sites.size)
+        assertEquals(0, fetched.size)
     }
 }

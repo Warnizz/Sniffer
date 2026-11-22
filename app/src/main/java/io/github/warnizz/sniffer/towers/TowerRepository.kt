@@ -24,9 +24,12 @@ class TowerRepository(
 
     suspend fun sitesNear(center: LatLon, radiusM: Double, apiKey: String?): TowersResult {
         val tiles = tilesCovering(center, radiusM)
-        val status = refresh(tiles, apiKey?.trim().orEmpty())
-        val hasData = tiles.any { store.tileFetchedAt(it) != null }
-        val cells = store.cellsInTiles(tiles).filter { distanceM(center, it.pos) <= radiusM }
+        val refreshed = refresh(tiles, apiKey?.trim().orEmpty())
+        val all = store.cellsInTiles(tiles)
+        // Imported country data counts as data even without a key or a fetched tile.
+        val hasData = all.isNotEmpty() || tiles.any { store.tileFetchedAt(it) != null }
+        val status = if (refreshed == DbStatus.NO_KEY && all.isNotEmpty()) DbStatus.OK else refreshed
+        val cells = all.filter { distanceM(center, it.pos) <= radiusM }
         return TowersResult(clusterSites(cells), status, hasData)
     }
 
