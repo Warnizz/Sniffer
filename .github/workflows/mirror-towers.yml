@@ -25,16 +25,26 @@ jobs:
           set -euo pipefail
           test -n "$TOKEN" || { echo "OPENCELLID_TOKEN secret is not set"; exit 1; }
           mkdir -p in
-          curl -fsSL "https://opencellid.org/downloads.php?token=$TOKEN" -o downloads.html
-          # Per-country (MCC) exports are linked as ...file=<mcc>.csv.gz; take each link once.
-          grep -oE 'href="[^"]*file=[0-9]{3}\.csv\.gz[^"]*"' downloads.html \
-            | sed -E 's/^href="//; s/"$//; s/&amp;/\&/g' | sort -u > links.txt
-          test -s links.txt || { echo "No per-country links found; the downloads page format may have changed"; exit 1; }
+          redact() { sed -E "s/(token=)[^&\"' ]*/\1***/g"; }  # GitHub also masks the secret itself
+          # The downloads page is a form that POSTs the token; the links appear in the response.
+          curl -fsSL -c cookies.txt -b cookies.txt --data-urlencode "token=$TOKEN" \
+            "https://opencellid.org/downloads.php" -o downloads.html
+          # Per-country exports: any link whose file name is <3-digit MCC>.csv.gz. Take each MCC once.
+          { grep -oE "href=[\"'][^\"']*[^0-9][0-9]{3}\.csv\.gz[^\"']*[\"']" downloads.html || true; } \
+            | sed -E "s/^href=[\"']//; s/[\"']$//; s/&amp;/\&/g" | sort -u > links.txt
+          if ! test -s links.txt; then
+            echo "No per-country links found; the downloads page format may differ. Page summary (token redacted):"
+            echo "--- title / messages"; grep -oiE '<title>[^<]*|alert[^>]*>[^<]{0,200}' downloads.html | redact | head -5 || true
+            echo "--- links mentioning csv/gz/download"; grep -oiE "href=[\"'][^\"']*(csv|gz|download)[^\"']*[\"']" downloads.html | redact | sort -u | head -40 || true
+            echo "--- forms"; grep -oiE '<form[^>]*>|<input[^>]*name=[^>]*>' downloads.html | redact | head -10 || true
+            exit 1
+          fi
+          echo "Found $(wc -l < links.txt) per-country links"
           while read -r link; do
             case "$link" in http*) url="$link" ;; /*) url="https://opencellid.org$link" ;; *) url="https://opencellid.org/$link" ;; esac
-            mcc=$(echo "$link" | grep -oE 'file=[0-9]{3}' | cut -d= -f2)
+            mcc=$(echo "$link" | grep -oE '[0-9]{3}\.csv\.gz' | head -1 | cut -c1-3)
             # Keep a file only if it is a complete gzip (errors can come back as HTML with HTTP 200).
-            if curl -fsSL "$url" -o "tmp.gz" && gzip -t tmp.gz 2>/dev/null; then
+            if curl -fsSL -b cookies.txt "$url" -o "tmp.gz" && gzip -t tmp.gz 2>/dev/null; then
               mv tmp.gz "in/$mcc.csv.gz"
             else
               rm -f tmp.gz; echo "::warning::download failed for MCC $mcc"
