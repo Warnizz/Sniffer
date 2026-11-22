@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Sniffer</string>
+    <string name="channel_ambient">Ambient mode</string>
+    <string name="notif_listening">Sniffer is listening to the network</string>
+    <string name="notif_no_db">No tower data — add an OpenCelliD key</string>
+    <string name="stop">Stop</string>
 </resources>

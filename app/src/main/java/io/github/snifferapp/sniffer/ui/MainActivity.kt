@@ -1,38 +1,40 @@
 package io.github.snifferapp.sniffer.ui
 
+import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.ui.Modifier
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import io.github.snifferapp.sniffer.sound.PdSoundSink
-import io.github.snifferapp.sniffer.sound.SoundControls
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.snifferapp.sniffer.SnifferApp
+import io.github.snifferapp.sniffer.engine.Mode
+import io.github.snifferapp.sniffer.engine.SnifferService
 
 class MainActivity : ComponentActivity() {
+    private val askPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val sink = PdSoundSink(applicationContext)
+        askPermissions.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.POST_NOTIFICATIONS))
+        val engine = (application as SnifferApp).engine
         setContent {
             MaterialTheme {
-                var playing by remember { mutableStateOf(false) }
+                val state by engine.state.collectAsStateWithLifecycle()
                 Column(Modifier.safeDrawingPadding()) {
-                    Text("Sniffer")
-                    // Temporary: test tone (removed in Task 11)
+                    Text("Sniffer — temporary debug screen (replaced in Task 11)")
                     Button(onClick = {
-                        playing = !playing
-                        if (playing) {
-                            sink.start()
-                            sink.send(SoundControls(0f, 0f, 0.5f, 0, 0, false, false, master = 1f))
-                        } else sink.stop()
-                    }) { Text(if (playing) "Stop tone" else "Play tone") }
+                        if (state.mode == Mode.OFF) SnifferService.start(this@MainActivity) else SnifferService.stop(this@MainActivity)
+                    }) { Text(if (state.mode == Mode.OFF) "Start ambient" else "Stop ambient") }
+                    Text("mode=${state.mode} user=${state.user} db=${state.dbStatus} sites=${state.sites.size}")
+                    Text("serving=${state.live?.serving}")
+                    Text("controls=${state.controls}")
                 }
             }
         }
