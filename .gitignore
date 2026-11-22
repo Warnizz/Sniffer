@@ -9,3 +9,4 @@ app/src/main/assets/*.pd
 /captures
 .externalNativeBuild
 .cxx
+pd/*.wav
