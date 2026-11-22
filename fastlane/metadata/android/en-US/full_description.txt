@@ -1,0 +1,17 @@
+Sniffer turns the cell towers around you into something you can see and hear.
+
+<b>Look around</b>
+Hold up your phone and cell towers appear as beacons in their real direction, with their distance and network type (2G–5G). The tower your phone is connected to pulses. Tap a beacon for details.
+
+<b>Ambient mode</b>
+Put your headphones on, lock the screen and go for a walk. Sniffer plays a generative soundscape (made with Pure Data) driven by the network around you:
+<ul>
+<li>a drone that thickens as you walk into areas with more and closer towers</li>
+<li>crackly radio static that follows your live signal quality</li>
+<li>synth phrases when it gets dense, or when your phone switches to another tower</li>
+</ul>
+
+<b>Tower data</b>
+Tower positions come from OpenCelliD, an open database (CC BY-SA 4.0). You need a free OpenCelliD API key, which you enter in settings. Only the map area around you is sent to OpenCelliD, and results are cached on the phone. Without a key, Sniffer still plays the soundscape from what your phone hears live.
+
+No Google services, no ads, no tracking.

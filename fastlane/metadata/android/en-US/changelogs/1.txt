@@ -1,0 +1,1 @@
+First release: camera view of nearby cell towers, ambient soundscape mode, OpenCelliD tower data.
