@@ -33,10 +33,11 @@ import io.github.warnizz.sniffer.engine.Mode
 import io.github.warnizz.sniffer.engine.SnifferEngine
 import io.github.warnizz.sniffer.engine.SnifferService
 import io.github.warnizz.sniffer.settings.SettingsStore
+import io.github.warnizz.sniffer.towers.CountryDataManager
 import io.github.warnizz.sniffer.towers.DbStatus
 
 @Composable
-fun HomeScreen(engine: SnifferEngine, settingsStore: SettingsStore, onLookAround: () -> Unit, onSettings: () -> Unit) {
+fun HomeScreen(engine: SnifferEngine, settingsStore: SettingsStore, countryData: CountryDataManager, onDownload: (Int) -> Unit, onLookAround: () -> Unit, onSettings: () -> Unit) {
     val context = LocalContext.current
     val state by engine.state.collectAsStateWithLifecycle()
     val settings by settingsStore.settings.collectAsStateWithLifecycle(null)
@@ -68,14 +69,36 @@ fun HomeScreen(engine: SnifferEngine, settingsStore: SettingsStore, onLookAround
             }
         }
 
-        val noKey = settings != null && settings?.apiKey == null
-        if (noKey || state.dbStatus == DbStatus.INVALID_KEY) {
+        val countries by countryData.state.collectAsStateWithLifecycle()
+        val servingMcc = state.live?.serving?.mcc
+        val hasCountry = servingMcc != null && countries.records.any { it.mcc == servingMcc }
+        if (countries.busyMcc != null) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Downloading tower data for MCC ${countries.busyMcc}…", style = MaterialTheme.typography.titleMedium)
+                    Text("${countries.progressRows} cells so far")
+                }
+            }
+        } else if (servingMcc != null && !hasCountry) {
+            val file = countries.index?.countries?.get(servingMcc)
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        if (noKey) "No OpenCelliD key — add one in settings to see towers"
-                        else "OpenCelliD rejected your key — check it in settings",
-                    )
+                    if (file != null) {
+                        Text("Tower data for your country", style = MaterialTheme.typography.titleMedium)
+                        Text("Download the cell towers for MCC $servingMcc (${formatBytes(file.bytes)}) once and Sniffer works offline. No account needed.")
+                        Button(onClick = { onDownload(servingMcc) }) { Text("Download ${formatBytes(file.bytes)}") }
+                    } else {
+                        Text(if (countries.index == null) "Couldn't reach the tower data mirror — check your connection."
+                            else "No tower data for MCC $servingMcc yet. You can add an OpenCelliD key in settings instead.")
+                    }
+                    countries.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            }
+        }
+        if (state.dbStatus == DbStatus.INVALID_KEY) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("OpenCelliD rejected your key — check it in settings")
                     OutlinedButton(onClick = onSettings) { Text("Open settings") }
                 }
             }
@@ -113,4 +136,10 @@ fun HomeScreen(engine: SnifferEngine, settingsStore: SettingsStore, onLookAround
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onSettings, Modifier.fillMaxWidth()) { Text("Settings") }
     }
+}
+
+fun formatBytes(b: Long): String = when {
+    b >= 1_000_000 -> "%.1f MB".format(b / 1_000_000.0)
+    b >= 1_000 -> "${b / 1_000} kB"
+    else -> "$b B"
 }

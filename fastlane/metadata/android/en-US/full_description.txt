@@ -12,6 +12,8 @@ Put your headphones on, lock the screen and go for a walk. Sniffer plays a gener
 </ul>
 
 <b>Tower data</b>
-Tower positions come from OpenCelliD, an open database (CC BY-SA 4.0). You need a free OpenCelliD API key, which you enter in settings. Only the map area around you is sent to OpenCelliD, and results are cached on the phone. Without a key, Sniffer still plays the soundscape from what your phone hears live.
+Tower positions come from OpenCellID, an open database (CC BY-SA 4.0), mirrored monthly by the project. Sniffer downloads your country's towers once (it knows the country from your phone's cell, not your location) and then works offline. No account needed. If you have an OpenCellID API key you can add it for live, fresher data around you; then the map area around you is sent to OpenCellID.
+
+Cell tower data from OpenCellID · CC BY-SA 4.0. Changes: unused columns removed.
 
 No Google services, no ads, no tracking.

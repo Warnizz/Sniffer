@@ -16,15 +16,21 @@ sealed interface ImportResult {
 
 const val MIRROR_BASE_URL = "https://github.com/Warnizz/Sniffer/releases/download/towers-latest"
 
+interface CountrySource {
+    suspend fun index(): CountryIndex?
+    suspend fun import(mcc: Int, progress: (rows: Int) -> Unit = {}): ImportResult
+    suspend fun updateAvailable(rec: CountryRecord): Boolean
+}
+
 /** Downloads a country file from the project's mirror and streams it into the store. */
 class CountryImporter(
     private val http: OkHttpClient,
     private val store: TowerStore,
     private val nowMs: () -> Long,
     private val baseUrl: String = MIRROR_BASE_URL,
-) {
+) : CountrySource {
     /** The mirror's index, or null when it can't be fetched. */
-    suspend fun index(): CountryIndex? = withContext(Dispatchers.IO) {
+    override suspend fun index(): CountryIndex? = withContext(Dispatchers.IO) {
         try {
             http.newCall(Request.Builder().url("$baseUrl/index.json").build()).execute().use { resp ->
                 if (!resp.isSuccessful) null else parseCountryIndex(resp.body!!.string())
@@ -40,7 +46,7 @@ class CountryImporter(
      * Imports one country. The country record is written only after every row is stored, so an
      * interrupted import is never mistaken for a complete one.
      */
-    suspend fun import(mcc: Int, progress: (rows: Int) -> Unit = {}): ImportResult = withContext(Dispatchers.IO) {
+    override suspend fun import(mcc: Int, progress: (rows: Int) -> Unit): ImportResult = withContext(Dispatchers.IO) {
         val idx = index() ?: return@withContext ImportResult.Failed("Couldn't reach the tower data mirror")
         val file = idx.countries[mcc] ?: return@withContext ImportResult.NotAvailable
         try {
@@ -64,7 +70,7 @@ class CountryImporter(
     }
 
     /** True when the mirror has a newer export than the one imported (ISO dates compare as strings). */
-    suspend fun updateAvailable(rec: CountryRecord): Boolean {
+    override suspend fun updateAvailable(rec: CountryRecord): Boolean {
         val idx = index() ?: return false
         return idx.countries.containsKey(rec.mcc) && idx.generated > rec.generated
     }

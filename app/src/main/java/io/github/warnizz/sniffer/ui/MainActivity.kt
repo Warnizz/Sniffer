@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.github.warnizz.sniffer.SnifferApp
 import io.github.warnizz.sniffer.ar.ArScreen
+import kotlinx.coroutines.launch
 
 private enum class Screen { HOME, AR, SETTINGS }
 
@@ -28,9 +29,16 @@ class MainActivity : ComponentActivity() {
                 BackHandler(enabled = screen != Screen.HOME) { screen = Screen.HOME }
                 Surface(Modifier.fillMaxSize()) {
                     when (screen) {
-                        Screen.HOME -> HomeScreen(app.engine, app.settingsStore, onLookAround = { screen = Screen.AR }, onSettings = { screen = Screen.SETTINGS })
+                        Screen.HOME -> HomeScreen(app.engine, app.settingsStore, app.countryData,
+                            onDownload = { mcc -> app.appScope.launch { app.countryData.download(mcc) } }, onLookAround = { screen = Screen.AR }, onSettings = { screen = Screen.SETTINGS })
                         Screen.AR -> ArScreen(app.engine, app.settingsStore, onBack = { screen = Screen.HOME })
-                        Screen.SETTINGS -> SettingsScreen(app.settingsStore, onBack = { screen = Screen.HOME })
+                        Screen.SETTINGS -> SettingsScreen(
+                            app.settingsStore, app.countryData,
+                            onDownload = { mcc -> app.appScope.launch { app.countryData.download(mcc) } },
+                            onRemove = { mcc -> app.appScope.launch { app.countryData.remove(mcc) } },
+                            onCheckUpdates = { app.appScope.launch { app.countryData.checkUpdatesNow() } },
+                            onBack = { screen = Screen.HOME },
+                        )
                     }
                 }
             }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -26,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,12 +36,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.warnizz.sniffer.settings.Settings
 import io.github.warnizz.sniffer.settings.SettingsStore
+import io.github.warnizz.sniffer.towers.CountryDataManager
 import kotlinx.coroutines.launch
 
-const val ATTRIBUTION = "Tower data © OpenCelliD contributors, CC BY-SA 4.0"
+const val ATTRIBUTION = "Cell tower data from OpenCellID · CC BY-SA 4.0. Changes: unused columns removed."
 
 @Composable
-fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
+fun SettingsScreen(store: SettingsStore, countryData: CountryDataManager, onDownload: (Int) -> Unit, onRemove: (Int) -> Unit, onCheckUpdates: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settings by store.settings.collectAsStateWithLifecycle(Settings())
@@ -54,8 +57,33 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
         TextButton(onClick = onBack) { Text("← Back") }
         Text("Settings", style = MaterialTheme.typography.headlineMedium)
 
-        Text("OpenCelliD API key", style = MaterialTheme.typography.titleMedium)
-        Text("Tower positions come from OpenCelliD. Create a free account to get your own key. It's stored only on this phone.")
+        val countries by countryData.state.collectAsStateWithLifecycle()
+        var mccField by remember { mutableStateOf("") }
+        Text("Tower data", style = MaterialTheme.typography.titleMedium)
+        Text("Countries are downloaded once from the project's mirror and work offline. Countries are identified by their mobile country code (MCC), e.g. 238 = Denmark.")
+        if (countries.records.isEmpty()) Text("No countries downloaded yet.", style = MaterialTheme.typography.bodySmall)
+        countries.records.forEach { rec ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("MCC ${rec.mcc} · ${rec.rows} cells · ${rec.generated}", Modifier.weight(1f))
+                TextButton(onClick = { onRemove(rec.mcc) }) { Text("Remove") }
+            }
+        }
+        countries.busyMcc?.let { Text("Downloading MCC $it… ${countries.progressRows} cells") }
+        countries.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = mccField, onValueChange = { mccField = it.filter(Char::isDigit).take(3) }, singleLine = true,
+                label = { Text("Add MCC") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+            )
+            Button(enabled = mccField.length == 3 && countries.busyMcc == null, onClick = { onDownload(mccField.toInt()); mccField = "" }) {
+                Text("Download")
+            }
+        }
+        OutlinedButton(enabled = countries.busyMcc == null, onClick = onCheckUpdates) { Text("Check for updates") }
+
+        Text("OpenCelliD API key (optional)", style = MaterialTheme.typography.titleMedium)
+        Text("Not needed. With your own free OpenCelliD key, Sniffer also fetches fresh tower data live for the area around you. The key is stored only on this phone.")
         OutlinedTextField(
             value = keyField, onValueChange = { keyField = it }, singleLine = true, label = { Text("API key") },
             visualTransformation = PasswordVisualTransformation(),
@@ -83,6 +111,11 @@ fun SettingsScreen(store: SettingsStore, onBack: () -> Unit) {
 
         Text("About", style = MaterialTheme.typography.titleMedium)
         Text(ATTRIBUTION, style = MaterialTheme.typography.bodySmall)
+        Row {
+            TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://opencellid.org"))) }) { Text("OpenCellID") }
+            TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://creativecommons.org/licenses/by-sa/4.0/"))) }) { Text("CC BY-SA 4.0") }
+            TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Warnizz/Sniffer"))) }) { Text("Source code") }
+        }
         Text("Sniffer is free software, licensed under the GNU GPL v3 or later. Sound engine: libpd (Pure Data).", style = MaterialTheme.typography.bodySmall)
     }
 }

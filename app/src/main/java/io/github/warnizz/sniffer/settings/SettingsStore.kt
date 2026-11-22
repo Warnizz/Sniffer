@@ -5,9 +5,11 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 data class Settings(
@@ -27,7 +29,11 @@ class SettingsStore(private val context: Context) {
         val ambientVolume = floatPreferencesKey("ambient_volume")
         val arVolume = floatPreferencesKey("ar_volume")
         val arMuted = booleanPreferencesKey("ar_muted")
+        val lastCountryCheck = longPreferencesKey("last_country_check_ms")
     }
+
+    suspend fun lastCountryCheckMs(): Long? = context.dataStore.data.first()[K.lastCountryCheck]
+    suspend fun setLastCountryCheckMs(ms: Long) { context.dataStore.edit { it[K.lastCountryCheck] = ms } }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
         val d = Settings()

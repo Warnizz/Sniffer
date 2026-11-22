@@ -9,8 +9,21 @@ soundscape. Free software (GPL-3.0-or-later), with no Google services, built for
   density, radio static follows live signal quality, and synth phrases play when it gets
   dense or when your phone hands over to another tower.
 
-Tower positions come from [OpenCelliD](https://opencellid.org) (CC BY-SA 4.0). Each user enters
-their own free API key in settings. Without a key the soundscape still runs on live data.
+Tower positions come from [OpenCellID](https://opencellid.org) (CC BY-SA 4.0). The project mirrors
+OpenCellID's per-country exports to this repo's [`towers-latest` release](https://github.com/Warnizz/Sniffer/releases/tag/towers-latest)
+every month. The app downloads your country once and works offline, with no account needed. An
+OpenCellID API key is optional and adds live, fresher data for the area around you.
+
+> Cell tower data from OpenCellID · CC BY-SA 4.0. Changes: unused columns removed.
+
+## Tower data mirror (maintainers)
+
+`.github/workflows/mirror-towers.yml` runs monthly (and on demand from the Actions tab). It needs a
+repository secret `OPENCELLID_TOKEN` holding a maintainer's OpenCellID API token. It downloads the
+per-country exports, slims them with `tools/mirror/mirror.py` (tests: `python3 -m unittest
+tools/mirror/test_mirror.py`), and uploads `<mcc>.csv.gz`, `index.json` and `LICENSE-DATA.txt` to
+the `towers-latest` release, plus a dated `towers-YYYY-MM` release. Scheduled workflows only run
+from the default branch.
 
 ## Building
 
