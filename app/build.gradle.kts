@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "io.github.snifferapp.sniffer"
+    namespace = "io.github.warnizz.sniffer"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "io.github.snifferapp.sniffer"
+        applicationId = "io.github.warnizz.sniffer"
         minSdk = 29
         targetSdk = 35
         versionCode = 1
