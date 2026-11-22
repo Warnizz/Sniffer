@@ -1,0 +1,54 @@
+name: Mirror OpenCelliD tower data
+
+on:
+  schedule:
+    - cron: "0 4 3 * *"   # monthly, 04:00 UTC on the 3rd
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test mirror script
+        run: python3 -m unittest tools/mirror/test_mirror.py
+
+      - name: Download per-country exports
+        env:
+          TOKEN: ${{ secrets.OPENCELLID_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$TOKEN" || { echo "OPENCELLID_TOKEN secret is not set"; exit 1; }
+          mkdir -p in
+          curl -fsSL "https://opencellid.org/downloads.php?token=$TOKEN" -o downloads.html
+          # Per-country (MCC) exports are linked as ...file=<mcc>.csv.gz; take each link once.
+          grep -oE 'href="[^"]*file=[0-9]{3}\.csv\.gz[^"]*"' downloads.html \
+            | sed -E 's/^href="//; s/"$//; s/&amp;/\&/g' | sort -u > links.txt
+          test -s links.txt || { echo "No per-country links found; the downloads page format may have changed"; exit 1; }
+          while read -r link; do
+            case "$link" in http*) url="$link" ;; /*) url="https://opencellid.org$link" ;; *) url="https://opencellid.org/$link" ;; esac
+            mcc=$(echo "$link" | grep -oE 'file=[0-9]{3}' | cut -d= -f2)
+            curl -fsSL "$url" -o "in/$mcc.csv.gz" || echo "::warning::download failed for MCC $mcc"
+            sleep 2
+          done < links.txt
+          ls in | wc -l
+
+      - name: Slim and index
+        run: python3 tools/mirror/mirror.py in out
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          month=$(date -u +%Y-%m)
+          gh release view towers-latest >/dev/null 2>&1 || \
+            gh release create towers-latest --title "Tower data (latest)" --notes-file tools/mirror/LICENSE-DATA.txt --latest=false
+          gh release upload towers-latest out/* --clobber
+          gh release view "towers-$month" >/dev/null 2>&1 || \
+            gh release create "towers-$month" out/* --title "Tower data $month" --notes-file tools/mirror/LICENSE-DATA.txt --latest=false

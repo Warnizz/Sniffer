@@ -10,3 +10,4 @@ app/src/main/assets/*.pd
 .externalNativeBuild
 .cxx
 pd/*.wav
+__pycache__/
