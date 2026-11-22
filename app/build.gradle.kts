@@ -37,6 +37,7 @@ android {
 }
 
 dependencies {
+    implementation("io.github.libpd.android:pd-core:1.4.1-SNAPSHOT")
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
@@ -63,3 +64,10 @@ dependencies {
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.okhttp.mockwebserver)
 }
+
+// The Pd patches live in /pd so they can be edited on a desktop; copy them into assets.
+val copyPdPatches by tasks.registering(Copy::class) {
+    from(rootProject.file("pd")) { include("sniffer.pd") }
+    into(layout.projectDirectory.dir("src/main/assets"))
+}
+tasks.named("preBuild") { dependsOn(copyPdPatches) }

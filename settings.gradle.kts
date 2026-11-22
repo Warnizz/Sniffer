@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "Sniffer"
 include(":app")
+includeBuild("external/pd-for-android/PdCore")
